@@ -1,8 +1,9 @@
 import React from 'react';
-import { withStyles } from "@material-ui/core/styles";
+import { createMuiTheme, ThemeProvider, withStyles } from "@material-ui/core/styles";
 import AppBar from '@material-ui/core/AppBar';
 import Button from '@material-ui/core/Button';
 import CssBaseline from '@material-ui/core/CssBaseline';
+import Fab from "@material-ui/core/Fab";
 import Grid from "@material-ui/core/Grid";
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
@@ -20,21 +21,11 @@ import SearchIcon from '@material-ui/icons/Search';
 import Dialog from '@material-ui/core/Dialog';
 import DialogActions from '@material-ui/core/DialogActions';
 import DialogContent from '@material-ui/core/DialogContent';
-import DialogContentText from '@material-ui/core/DialogContentText';
 import DialogTitle from '@material-ui/core/DialogTitle';
 import TextField from '@material-ui/core/TextField';
 
-const gen_fake_note = (id, title, description) => ({
-    "id": id,
-    "uuid": "01bc6ce1-665c-49ad-a664-07aab25003df",
-    "title": title,
-    "description": description,
-    "origin": "Heard it when it first dropped!",
-    "tags": new Set(),
-    "create_time": "April Shcinty Sixth",
-    "owner": "brendon",
-    "last_update_time": "Yesterday",
-});
+const NOTES_API = 'http://localhost:9001/'
+const lists = [];
 
 const styles = theme => ({
   fullHeight: {
@@ -42,6 +33,13 @@ const styles = theme => ({
   },
     text: {
     padding: theme.spacing(2, 2, 0),
+    },
+  addButton: {
+    position: 'absolute',
+    zIndex: 1,
+    bottom: '10%',
+    right: "5%",
+    margin: '0 auto',
   },
   paper: {
     paddingBottom: 50,
@@ -61,28 +59,34 @@ const styles = theme => ({
   },
 });
 
-const notes = [
-    gen_fake_note(0, "My first Car", "Was a subaru"),
-    gen_fake_note(1, "Superintelligence", "Book, I'd like to read it"),
-    gen_fake_note(2, "The Slow Rush", "An album I'd like to listen to"),
-    gen_fake_note(3, "Vulfpeccc", "What a dope band"),
-    gen_fake_note(4, "Typed Notes", "An application I'd like to develop"),
-    gen_fake_note(5, "My first Car", "Was a subaru"),
-    gen_fake_note(6, "Superintelligence", "Book, I'd like to read it"),
-    gen_fake_note(7, "The Slow Rush", "An album I'd like to listen to"),
-    gen_fake_note(8, "Vulfpeccc", "What a dope band"),
-    gen_fake_note(9, "Typed Notes", "An application I'd like to develop"),
-
-];
-
-const lists = [];
-
 class App extends React.Component {
     render () {
+	const theme = createMuiTheme({
+	     palette: {
+		 primary: {
+		     light: '#757ce8',
+		     main: '#000000',
+		     dark: '#002884',
+		     contrastText: '#fff',
+		 },
+		 secondary: {
+		     light: '#ff7961',
+		     main: '#f44336',
+		     dark: '#ba000d',
+		     contrastText: '#000',
+		 },
+		 background: {
+		     paper: '#efefef',
+		     default: "#fff",
+		 }
+	     },
+	});
 	return (<React.Fragment>
-	<CssBaseline />
+	    <CssBaseline />
+	    <ThemeProvider theme={theme}>
 	    <StyledNotesPanel />
-	<StyledBottomAppBar />
+	    <StyledBottomAppBar />
+	    </ThemeProvider>
 	</React.Fragment>);
     }
 }
@@ -90,29 +94,153 @@ class App extends React.Component {
 
 class NotesPanel extends React.Component {
     // Note we are looking at, and whether we are looking at it
-    state = {open: false, active_note: null};
+    constructor(props) {
+	super(props);
+	// Chose to unpack note to simplify set_state
+	this.state = {
+	    open: false,
+	    active_uuid: "",
+	    title: "",
+	    description:"",
+	    owner: "brendon",
+	    origin: "",
+	    tags: [],
+	    notes: []
+	    
+	}
+	this.handleNoteEdit = this.handleNoteEdit.bind(this);
+	this.handleOpen = this.handleOpen.bind(this);
+	this.handleSave = this.handleSave.bind(this);
+    }
+
+    componentDidMount() {
+	this.loadNotes();
+    }
+
+    loadNotes() {
+	fetch(NOTES_API + "notes/brendon").then(response => {
+	    response.json().then(data => {
+		let notes = [];
+		for (const [key, value] of Object.entries(data.notes)) {
+		    notes.push(value);
+		}
+		notes.sort((a,b) => {
+		    if (a.last_update_time <  b.last_update_time) {
+			return 1;
+		    }
+		    return -1;
+		});
+		this.setState({
+		    notes: notes
+		});
+	    })
+	}).catch(console.log)
+    }
 
     handleOpen = (active_note) => {
-	this.setState({open: true, active_note: active_note});
+	this.setState(
+	    {
+		open: true,
+		active_uuid: active_note.uuid,
+		title: active_note.title,
+		description: active_note.description,
+		origin: active_note.origin || "",
+		tags: active_note.tags,
+	});
+    }
+
+    handleCreate = () => {
+	this.setState(
+	    {
+		open: true,
+		active_uuid: null,
+		title: "",
+		description: "",
+		origin: "",
+		tags: []
+	});
+    }
+
+    handleNoteEdit(evt) {
+	this.setState({
+	    [evt.target.name]: evt.target.value
+	});
+    }
+
+    handleSave() {
+	// If we are editing a note
+	if(this.state.active_uuid) {
+	    let note_update_request = {
+		note_id: this.state.active_uuid,
+		title: this.state.title,
+		description: this.state.description,
+		origin: this.state.origin,
+		tags: this.state.tags,
+	    };
+	    fetch(NOTES_API + "note/" + this.state.active_uuid, {
+		method: "PUT",
+		headers: {
+		    'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(note_update_request)
+	    }).then(response => {
+		// Once we've successfully saved, log the response, and reload the notes on the page
+		this.loadNotes();
+	    }).catch(console.error);
+	    
+	} else {
+	    let note_create_request = {
+		title: this.state.title,
+		description: this.state.description,
+		owner:this.state.owner,
+		origin: this.state.origin,
+		tags: this.state.tags,
+	    };
+	    fetch(NOTES_API + "notes", {
+		method: "POST",
+		headers: {
+		    'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(note_create_request)
+	    }).then(response => {
+		this.loadNotes();
+
+		// Force close after create
+		this.handleClose();
+	    }).catch(console.error);
+	}
     }
 
     handleClose = () => {
-	this.setState({open: false});
+	this.setState({open: false, active_note: null});
     }
-    
+
     render() {
 	const { classes } = this.props;
 	return (
 	    <Paper square className={classes.paper}>
-	    {this.state.active_note != null && <NoteDialog handleClose={this.handleClose} open={this.state.open} note_data={this.state.active_note} />}
-            <Typography className={classes.text} variant="h5" gutterBottom>
-	    Notes
-            </Typography>
+	    {this.state.open &&
+	     <NoteDialog
+		handleClose={this.handleClose}
+		handleChange={this.handleNoteEdit}
+		handleSave={this.handleSave}
+		open={this.state.open}
+		title={this.state.title}
+		description={this.state.description}
+		origin={this.state.origin}
+		/>}
             <List className={classes.list}>
-            {notes.map((note_data, index) => 
+            {this.state.notes.map((note_data, index) => (
+		<>
 		<NoteEntry key={`note-entry-${index}`} note_data={note_data} onClick={() => {this.handleOpen(note_data)}} />
+		</>)
 	    )}
             </List>
+	    <Fab color="secondary" aria-label="add" className={classes.addButton}>
+	    <IconButton color="inherit" onClick={this.handleCreate}>
+            <AddIcon />
+	    </IconButton>
+            </Fab>
 	    </Paper>
 	);
     }
@@ -162,9 +290,6 @@ class BottomAppBar extends React.Component {
 	    <IconButton color="inherit">
 	    <SearchIcon />
 	    </IconButton>
-	    <IconButton color="inherit">
-	    <AddIcon />
-	    </IconButton>
 	    </Grid>
             </Grid>
 	    </Toolbar>
@@ -177,7 +302,15 @@ class BottomAppBar extends React.Component {
 
 class NoteDialog extends React.Component {
     render() {
-	const {open, handleClose, note_data} = this.props;
+	const {
+	    open,
+	    handleChange,
+	    handleClose,
+	    handleSave,
+	    title,
+	    origin,
+	    description,
+	} = this.props;
 	return (<Dialog
         open={open}
         onClose={handleClose}
@@ -188,38 +321,40 @@ class NoteDialog extends React.Component {
             <DialogTitle>
 	    <TextField
             margin="dense"
-            id="title"
+            name="title"
             label="Title"
             type="text"
             fullWidth
+	    value={title}
+	    onChange={handleChange}
             />
 	    </DialogTitle>
             <DialogContent dividers={true}>
 	    <TextField
             margin="dense"
-            id="origin"
-            label="Origin"
+            name="description"
             type="text"
+	    multiline
+	    rows={8}
+	    value={description}
+	    onChange={handleChange}
             fullWidth
             />
 	    <TextField
             margin="dense"
-            id="description"
-            label="Body"
+            name="origin"
+            label="Origin"
             type="text"
             fullWidth
+	    value={origin}
+	    onChange={handleChange}
             />
-	    <DialogContentText>
+	    <TagField />
 
-	    {note_data.origin}
-	    </DialogContentText>
-	    <DialogContentText>
-	    {note_data.description}
-	    </DialogContentText>
         </DialogContent>
             <DialogActions>
-          <Button onClick={handleClose} color="primary">
-	    Edit
+          <Button onClick={handleSave} color="primary">
+	    Save
           </Button>
           <Button onClick={handleClose} color="primary">
 	    Close
@@ -229,13 +364,27 @@ class NoteDialog extends React.Component {
     }
 }
 
+class TagField extends React.Component {
+    render() {
+	return(<TextField
+            margin="dense"
+            name="tags"
+            label="Tags"
+            type="text"
+            fullWidth
+	/>)
+	
+    }
+}
+
     
 
 class NoteEntry extends React.Component {
     render() {
 	const {note_data, onClick} = this.props;
-	return (<ListItem button onClick={onClick}>
-	    <ListItemText primary={note_data.title} secondary={note_data.description} />
+	const last_update_human = new Date(Number(note_data.last_update_time) * 1000).toLocaleString();
+	return (<ListItem divider button onClick={onClick}>
+	    <ListItemText primary={note_data.title} secondary={last_update_human} />
 	    </ListItem>);
     }
 }
