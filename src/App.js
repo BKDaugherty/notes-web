@@ -24,7 +24,10 @@ import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
 import TextField from '@material-ui/core/TextField';
 
-const NOTES_API = 'http://localhost:9001/'
+// Run against prod API
+const NOTES_API = "https://typed-thoughts.herokuapp.com/"
+// Local Development
+// const NOTES_API = 'http://localhost:9001/'
 const lists = [];
 
 const styles = theme => ({
