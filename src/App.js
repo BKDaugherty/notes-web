@@ -7,7 +7,6 @@ import CssBaseline from '@material-ui/core/CssBaseline';
 import Fab from "@material-ui/core/Fab";
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
-import Toolbar from '@material-ui/core/Toolbar';
 import Typography from '@material-ui/core/Typography';
 import InputAdornment from '@material-ui/core/InputAdornment';
 import IconButton from '@material-ui/core/IconButton';
@@ -359,7 +358,6 @@ class BottomAppBar extends React.Component {
 	const {classes} = this.props;
 	return (
 	    <AppBar position="fixed" color="primary" className={classes.appBar}>
-	    <Toolbar>
 	    <Tabs
 	    value={this.state.currentTab}
 	    onChange={this.changeTab}
@@ -369,9 +367,6 @@ class BottomAppBar extends React.Component {
 	    <Tab classes={{ root: classes.fullHeight }} icon={<NotesIcon />} value="notes" />
 	    <Tab classes={{ root: classes.fullHeight }} icon={<ListIcon />} value="lists" />
 	    </Tabs>
-	    <IconButton color="inherit">
-	    </IconButton>
-	    </Toolbar>
 	    </AppBar>
 	);
 
