@@ -8,7 +8,6 @@ import Fab from "@material-ui/core/Fab";
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Typography from '@material-ui/core/Typography';
-import InputAdornment from '@material-ui/core/InputAdornment';
 import IconButton from '@material-ui/core/IconButton';
 import Paper from '@material-ui/core/Paper';
 import List from '@material-ui/core/List';
@@ -23,42 +22,7 @@ import DialogContent from '@material-ui/core/DialogContent';
 import DialogTitle from '@material-ui/core/DialogTitle';
 import TextField from '@material-ui/core/TextField';
 
-// Run against prod API
-const NOTES_API = "https://typed-thoughts.herokuapp.com/"
-// Local Development
-// const NOTES_API = 'http://localhost:9001/'
-
-// TODO Algebraic tags
-// TODO --> Get these from Rust
-const TAGS = [
-    {"title": "Article"},
-    {"title": "Book"},
-    {"title": "Movie"},
-    {"title": "Career"},
-    {"title": "Entertainment"},
-    {"title": "Productivity"},
-    {"title": "ArtificialIntelligence"},
-    {"title": "EffectiveAltruism"},
-    {"title": "SocialJustice"},
-];
-
-const check_tag_equality = (tag1, tag2) => {
-    return tag1['title'] === tag2['title'];
-}
-
-const convert_tags_to_rust = (tag) => {
-    return tag["title"];
-}
-
-const convert_tags_from_rust = (tag) => {
-    if (typeof(tag) == "string") {
-	return {"title": tag};
-    } else {
-	console.error("Unknown tag variant:", tag);
-	return tag;
-    }
-}
-// TODO - Make JS library for talking to Notes App using Service trait
+import {notes_api, TAGS, check_tag_equality} from "./api";
 
 const lists = [];
 
@@ -95,6 +59,15 @@ const styles = theme => ({
 });
 
 class App extends React.Component {
+    constructor(props) {
+	super(props);
+	this.state = {currentTab: 'notes'};
+	this.changeTab = this.changeTab.bind(this);
+    }
+    changeTab = (event, value) => {
+	this.setState({ currentTab: value});
+    };
+
     render () {
 	const theme = createMuiTheme({
 	     palette: {
@@ -119,8 +92,13 @@ class App extends React.Component {
 	return (<React.Fragment>
 	    <CssBaseline />
 	    <ThemeProvider theme={theme}>
-	    <StyledNotesPanel />
-	    <StyledBottomAppBar />
+	    {this.state.currentTab === 'notes' &&
+	     <StyledNotesPanel />
+	    }
+	    {this.state.currentTab === 'lists' &&
+	     <StyledListsPanel />
+	    }
+	    <StyledBottomAppBar changeTab={this.changeTab} currentTab={this.state.currentTab}/>
 	    </ThemeProvider>
 	</React.Fragment>);
     }
@@ -148,6 +126,7 @@ class NotesPanel extends React.Component {
 	this.handleNoteEdit = this.handleNoteEdit.bind(this);
 	this.handleOpen = this.handleOpen.bind(this);
 	this.handleSave = this.handleSave.bind(this);
+	this.handleArchive = this.handleArchive.bind(this);
     }
 
     componentDidMount() {
@@ -155,23 +134,10 @@ class NotesPanel extends React.Component {
     }
 
     loadNotes() {
-	fetch(NOTES_API + "notes/brendon").then(response => {
-	    response.json().then(data => {
-		let notes = [];
-		for (const [key, value] of Object.entries(data.notes)) {
-		    value.tags = value.tags.map(convert_tags_from_rust);
-		    notes.push(value);
-		}
-		notes.sort((a,b) => {
-		    if (a.last_update_time <  b.last_update_time) {
-			return 1;
-		    }
-		    return -1;
-		});
-		this.setState({
-		    notes: notes
-		});
-	    })
+	notes_api.get_notes("brendon").then(notes => {
+	    this.setState({
+		notes: notes
+	    });
 	}).catch(console.log)
     }
 
@@ -182,10 +148,16 @@ class NotesPanel extends React.Component {
 		active_uuid: active_note.uuid,
 		title: active_note.title,
 		description: active_note.description,
-		origin: active_note.origin || "",
 		tags: active_note.tags,
 
 	});
+    }
+
+    handleArchive() {
+	const note_id = this.state.active_uuid;
+	notes_api.archive_note(note_id).then(response => {
+	    this.loadNotes();
+	}).catch(console.error);
     }
 
     handleCreate = () => {
@@ -215,41 +187,28 @@ class NotesPanel extends React.Component {
     handleSave() {
 	// If we are editing a note
 	if(this.state.active_uuid) {
-	    let note_update_request = {
+	    let update_note_request = {
 		note_id: this.state.active_uuid,
 		title: this.state.title,
 		description: this.state.description,
 		origin: this.state.origin,
-		tags: this.state.tags.map(convert_tags_to_rust),
+		tags: this.state.tags,
 	    };
-	    fetch(NOTES_API + "note/" + this.state.active_uuid, {
-		method: "PUT",
-		headers: {
-		    'Content-Type': 'application/json'
-		},
-		body: JSON.stringify(note_update_request)
-	    }).then(response => {
+	    notes_api.update_note(update_note_request).then(response => {
 		// Once we've successfully saved, log the response, and reload the notes on the page
 		this.loadNotes();
 	    }).catch(console.error);
 	    
 	} else {
-	    let note_create_request = {
+	    let create_note_request = {
 		title: this.state.title,
 		description: this.state.description,
 		owner:this.state.owner,
 		origin: this.state.origin,
-		tags: this.state.tags.map(convert_tags_to_rust),
+		tags: this.state.tags,
 	    };
-	    fetch(NOTES_API + "notes", {
-		method: "POST",
-		headers: {
-		    'Content-Type': 'application/json'
-		},
-		body: JSON.stringify(note_create_request)
-	    }).then(response => {
+	    notes_api.create_note(create_note_request).then(response => {
 		this.loadNotes();
-
 		// Force close after create
 		this.handleClose();
 	    }).catch(console.error);
@@ -274,6 +233,7 @@ class NotesPanel extends React.Component {
 		handleChange={this.handleNoteEdit}
 		handleNoteTagEdit={this.handleNoteTagEdit}
 		handleSave={this.handleSave}
+		handleArchive={this.handleArchive}
 		open={this.state.open}
 		title={this.state.title}
 		description={this.state.description}
@@ -297,6 +257,11 @@ class NotesPanel extends React.Component {
             <List className={classes.list}>
             {
 		this.state.notes.filter((note_data) => {
+		    // Don't show notes that have been 'archived'
+		    if (note_data.delete_time == null) {
+			return false;
+		    }
+		    
 		    // Filter notes based on search box
 		    if (this.state.search.length > 0) {
 			// TODO make this a set :(
@@ -349,18 +314,13 @@ class ListsPanel extends React.Component {
 
 
 class BottomAppBar extends React.Component {
-    state = {currentTab: "notes"}
-    changeTab = (event, value) => {
-	this.setState({ currentTab: value});
-    };
-
     render () {
-	const {classes} = this.props;
+	const {classes, currentTab, changeTab} = this.props;
 	return (
 	    <AppBar position="fixed" color="primary" className={classes.appBar}>
 	    <Tabs
-	    value={this.state.currentTab}
-	    onChange={this.changeTab}
+	    value={currentTab}
+	    onChange={changeTab}
 	    variant="fullWidth"
 	    aria-label="tabs"
 	    >
@@ -382,8 +342,8 @@ class NoteDialog extends React.Component {
 	    handleNoteTagEdit,
 	    handleClose,
 	    handleSave,
+	    handleArchive,
 	    title,
-	    origin,
 	    tags,
 	    description,
 	} = this.props;
@@ -420,13 +380,16 @@ class NoteDialog extends React.Component {
 
         </DialogContent>
             <DialogActions>
-          <Button onClick={handleSave} color="primary">
+	    <Button onClick={handleArchive} color="primary">
+	    Archive
+            </Button>
+            <Button onClick={handleSave} color="primary">
 	    Save
-          </Button>
-          <Button onClick={handleClose} color="primary">
+            </Button>
+            <Button onClick={handleClose} color="primary">
 	    Close
-          </Button>
-        </DialogActions>
+            </Button>
+            </DialogActions>
 	</Dialog>);
     }
 }
