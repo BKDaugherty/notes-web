@@ -259,7 +259,7 @@ class NotesPanel extends React.Component {
 		this.state.notes.filter((note_data) => {
 		    // Don't show notes that have been 'archived'
 		    if (note_data.delete_time == null) {
-			return false;
+			return true;
 		    }
 		    
 		    // Filter notes based on search box

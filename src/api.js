@@ -1,7 +1,7 @@
 // Run against prod API
-// const NOTES_API = "https://typed-thoughts.herokuapp.com/"
+const NOTES_API = "https://typed-thoughts.herokuapp.com/"
 // Local Development
-const NOTES_API = 'http://localhost:9001/'
+// const NOTES_API = 'http://localhost:9001/'
 
 // TODO Algebraic tags
 // TODO --> Get these from Rust
