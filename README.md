@@ -12,7 +12,7 @@ npm run start
 ## TODO
 - Splash Screen
 - Drag to Refresh
-- Algebraic Enum UI support
+- Make the TagList representation not look like hot garbage
 - Refactor App file
 - Make lists view
 - owner login screen with funny thing about password
