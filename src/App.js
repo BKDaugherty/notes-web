@@ -134,7 +134,7 @@ class NotesPanel extends React.Component {
     }
 
     loadNotes() {
-	notes_api.get_notes("brendon").then(notes => {
+	notes_api.get_notes(this.state.owner).then(notes => {
 	    this.setState({
 		notes: notes
 	    });
@@ -215,12 +215,24 @@ class NotesPanel extends React.Component {
 	}
     }
 
+
     handleClose = () => {
 	this.setState({open: false, active_note: null});
     }
 
-    handleSearchChange = (evt, newValue) => {
-	this.setState({search: newValue});
+    // Watch for race conditions...
+    handleTagListChange = (stateName) => (oldState) => (evt, newValue) => {
+	console.log("tl");
+	console.log(evt, newValue);
+	// Hello? yes, this is jank please find a new way to do this lol
+	// or at least localize it to a component?
+	const index = evt.target.name.split("-")[0]
+	oldState[index].value = evt.target.value;
+	this.setState({[stateName]: oldState})
+    }
+
+    handleTagPickerChange = (stateName) => (evt, newValue) => {
+	this.setState({[stateName]: newValue})
     }
 
     render() {
@@ -232,6 +244,7 @@ class NotesPanel extends React.Component {
 		handleClose={this.handleClose}
 		handleChange={this.handleNoteEdit}
 		handleNoteTagEdit={this.handleNoteTagEdit}
+		handleTagListChange={this.handleTagListChange}
 		handleSave={this.handleSave}
 		handleArchive={this.handleArchive}
 		open={this.state.open}
@@ -240,19 +253,12 @@ class NotesPanel extends React.Component {
 		origin={this.state.origin}
 		tags={this.state.tags}
 		/>}
-	    <Autocomplete
-	    multiple
-	    options={TAGS}
-	    getOptionLabel={(option) => option.title}
+	    <TagPicker
+	    handlePickerChange={this.handleTagPickerChange("search")}
+	    handleListEntryChange={this.handleTagListChange("search")}
 	    value={this.state.search}
-	    onChange={this.handleSearchChange}
-	    renderInput={(params) =>
-		<TextField
-		{...params}
-		fullWidth
-		variant="filled"
-		placeholder="Search..."
-		/>}
+	    inputPlaceholder="Search for tags..."
+	    variant="filled"
 	    />
             <List className={classes.list}>
             {
@@ -340,6 +346,7 @@ class NoteDialog extends React.Component {
 	    open,
 	    handleChange,
 	    handleNoteTagEdit,
+	    handleTagListChange,
 	    handleClose,
 	    handleSave,
 	    handleArchive,
@@ -376,7 +383,13 @@ class NoteDialog extends React.Component {
 	    onChange={handleChange}
             fullWidth
             />
-	    <TagField onChange={handleNoteTagEdit} name={"tags"} tags={tags}/>
+	    <TagPicker
+	    handlePickerChange={handleNoteTagEdit}
+	    handleListEntryChange={handleTagListChange("tags")}
+	    value={tags}
+	    variant="standard"
+	    inputPlaceholder="Enter tags..."
+	    />
 
         </DialogContent>
             <DialogActions>
@@ -394,30 +407,84 @@ class NoteDialog extends React.Component {
     }
 }
 
-class TagField extends React.Component {
+class TagInput extends React.Component {
     render() {
-	const {name, onChange, tags} = this.props;
-	return(
-	    <Autocomplete
+	return (
+	    <div ref={this.props.InputProps.ref}>
+	    <TextField
+	    {...this.props}
+	    fullWidth
+	    />
+	    </div>
+	)
+    }
+}
+
+class TagPicker extends React.Component {
+    render() {
+	const {value, handlePickerChange, handleListEntryChange, inputPlaceholder, variant} = this.props;
+	return (<>
+    	<Autocomplete
 	    multiple
-	    name={name}
-	    onChange={onChange}
-	    value={tags}
 	    options={TAGS}
 	    getOptionLabel={(option) => option.title}
+	    value={value}
+	    onChange={handlePickerChange}
+	    // Don't render the tags in the list, as we render them outside in TagList
+	    renderTags={() => {}}
 	    getOptionSelected={(option, value) => {
 		return check_tag_equality(option, value);
 	    }}
 	    renderInput={(params) =>
-		<TextField
+		<TagInput
 		{...params}
-		label="Tags"
-		fullWidth
+		variant={variant}
+		placeholder={inputPlaceholder}
 		/>}
-	    />)
+	    />
+	<TagList value={value} onChange={handleListEntryChange} />
+	</>)
     }
 }
 
+// Tag Entry
+// Autocomplete component for figuring out which Tag you'd like to select
+// once you've selected a tag, that's added to the list of tag's you're using.
+// You then can fill out a tag with the values that you'd like
+// The search component then looks at these tags and filters (if no value in assumes has tag by value ambiguous?
+class TagList extends React.Component {
+    render() {
+	const tags = this.props.value;
+	const handleChange = this.props.onChange(tags);
+	return (
+	    <ul>
+	    {tags.map((tag_data, index) => {
+		return <TagValue tag_index={index} onChange={handleChange} {...tag_data} />
+	    })}
+	    </ul>
+	)
+    }
+}
+
+
+class TagValue extends React.Component {
+    render() {
+	return (
+	    <>
+	    {!this.props.canHaveValue && <Typography>{this.props.title}</Typography>}
+	    {this.props.canHaveValue&&
+	     <TextField value={this.props.value || ""}
+		onChange={this.props.onChange}
+		type="text"
+		name={this.props.tag_index + "-" + this.props.title + "-value"}
+		label={this.props.title}
+		/>}
+	    </>
+	)
+    }
+}
+
+    
 class NoteEntry extends React.Component {
     render() {
 	const {note_data, onClick} = this.props;
