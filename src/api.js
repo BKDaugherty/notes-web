@@ -66,6 +66,9 @@ const get_notes = (owner) => {
 	    let notes = [];
 	    for (const value of Object.values(data.notes)) {
 		value.tags = value.tags.map(convert_tags_from_rust);
+		value.tags.sort((tag1, tag2) => {
+		    return tag1.title.localeCompare(tag2.title);
+		});
 		notes.push(value);
 	    }
 	    notes.sort((a,b) => {

@@ -5,6 +5,7 @@ import Autocomplete from '@material-ui/lab/Autocomplete';
 import Button from '@material-ui/core/Button';
 import CssBaseline from '@material-ui/core/CssBaseline';
 import Fab from "@material-ui/core/Fab";
+import Grid from '@material-ui/core/Grid';
 import Tabs from '@material-ui/core/Tabs';
 import Tab from '@material-ui/core/Tab';
 import Typography from '@material-ui/core/Typography';
@@ -34,7 +35,7 @@ const styles = theme => ({
     padding: theme.spacing(2, 2, 0),
     },
   addButton: {
-    position: 'absolute',
+    position: 'fixed',
     zIndex: 1,
     bottom: '10%',
     right: "5%",
@@ -459,7 +460,7 @@ class TagList extends React.Component {
 	return (
 	    <ul>
 	    {tags.map((tag_data, index) => {
-		return <TagValue tag_index={index} onChange={handleChange} {...tag_data} />
+		return <TagValue editable={true} tag_index={index} onChange={handleChange} {...tag_data} />
 	    })}
 	    </ul>
 	)
@@ -469,16 +470,30 @@ class TagList extends React.Component {
 
 class TagValue extends React.Component {
     render() {
+	const {
+	    editable,
+	    onChange,
+	    tag_index,
+	    canHaveValue,
+	    value,
+	    title,
+	} = this.props;
+
+	let humanValue = "";
+	if (canHaveValue && value) {
+	    humanValue = value[0].toUpperCase() + value.substring(1, title.length);
+	}
 	return (
 	    <>
-	    {!this.props.canHaveValue && <Typography>{this.props.title}</Typography>}
-	    {this.props.canHaveValue&&
-	     <TextField value={this.props.value || ""}
-		onChange={this.props.onChange}
+	    {!(canHaveValue || editable) && <Typography>{title}</Typography>}
+	    {editable && canHaveValue &&
+	     <TextField value={value || ""}
+		onChange={onChange}
 		type="text"
-		name={this.props.tag_index + "-" + this.props.title + "-value"}
-		label={this.props.title}
+		name={tag_index + "-" + title + "-value"}
+		label={title}
 		/>}
+	    {!editable && canHaveValue && <Typography>{title}: {humanValue}</Typography>}
 	    </>
 	)
     }
@@ -491,6 +506,11 @@ class NoteEntry extends React.Component {
 	const last_update_human = new Date(Number(note_data.last_update_time) * 1000).toLocaleString();
 	return (<ListItem divider button onClick={onClick}>
 	    <ListItemText primary={note_data.title} secondary={last_update_human} />
+	    <Grid container direction="column" justify="flex-end" alignItems="flex-end">
+	    {note_data.tags.map((tag) => {
+		return <Grid item><TagValue editable={false} {...tag} /></Grid>;
+	    })}
+	    </Grid>
 	    </ListItem>);
     }
 }
