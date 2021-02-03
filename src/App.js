@@ -4,6 +4,7 @@ import AppBar from '@material-ui/core/AppBar';
 import Autocomplete from '@material-ui/lab/Autocomplete';
 import Button from '@material-ui/core/Button';
 import CssBaseline from '@material-ui/core/CssBaseline';
+import Chip from '@material-ui/core/Chip';
 import Fab from "@material-ui/core/Fab";
 import Grid from '@material-ui/core/Grid';
 import Tabs from '@material-ui/core/Tabs';
@@ -62,14 +63,15 @@ const styles = theme => ({
 class App extends React.Component {
     constructor(props) {
 	super(props);
-	this.state = {currentTab: 'notes'};
-	this.changeTab = this.changeTab.bind(this);
+	// TODO REMOVE default owner
+	this.state = {owner: "brendon"};
+	this.setOwner = this.setOwner.bind(this);
     }
-    changeTab = (event, value) => {
-	this.setState({ currentTab: value});
-    };
+    setOwner = (value) => () => {
+	this.setState({owner: value});
+    }
 
-    render () {
+    render() {
 	const theme = createMuiTheme({
 	     palette: {
 		 primary: {
@@ -93,18 +95,68 @@ class App extends React.Component {
 	return (<React.Fragment>
 	    <CssBaseline />
 	    <ThemeProvider theme={theme}>
+	    {this.state.owner && <AuthApp owner={this.state.owner} />}
+	    {!this.state.owner && <LoginScreen setOwner={this.setOwner}/>}
+	    </ThemeProvider>
+	    </React.Fragment>
+	);
+    }
+}
+
+class LoginScreen extends React.Component {
+    constructor(props) {
+	super(props);
+	this.state = {user: ""};
+    }
+
+    render() {
+	const {setOwner} = this.props;
+	return (
+	    <Grid container direction="column" justify="center" alignItems="center" >
+	    <Paper>
+	    <Typography variant="h1">Recs</Typography>
+	    <div>
+	    <TextField
+            name="owner"
+            label="Owner"
+            type="text"
+	    value={this.state.user}
+	    onChange={(value) => {this.setState({user:value.target.value})}}
+	    />
+	    <Button variant="contained" onClick={setOwner(this.state.user)} color="primary">
+	    Login
+            </Button>
+	    </div>
+	    </Paper>
+	    </Grid>
+	);
+    }
+}
+
+class AuthApp extends React.Component {
+    constructor(props) {
+	super(props);
+	this.state = {currentTab: 'notes'};
+	this.changeTab = this.changeTab.bind(this);
+    }
+    
+    changeTab = (event, value) => {
+	this.setState({currentTab: value});
+    }
+    render() {
+	return (
+	    <>
 	    {this.state.currentTab === 'notes' &&
-	     <StyledNotesPanel />
+	     <StyledNotesPanel owner={this.props.owner}/>
 	    }
 	    {this.state.currentTab === 'lists' &&
 	     <StyledListsPanel />
 	    }
 	    <StyledBottomAppBar changeTab={this.changeTab} currentTab={this.state.currentTab}/>
-	    </ThemeProvider>
-	</React.Fragment>);
+	    </>
+	);
     }
 }
-
 
 class NotesPanel extends React.Component {
     // Note we are looking at, and whether we are looking at it
@@ -117,7 +169,6 @@ class NotesPanel extends React.Component {
 	    active_uuid: "",
 	    title: "",
 	    description:"",
-	    owner: "brendon",
 	    origin: "",
 	    tags: [],
 	    notes: []
@@ -135,7 +186,7 @@ class NotesPanel extends React.Component {
     }
 
     loadNotes() {
-	notes_api.get_notes(this.state.owner).then(notes => {
+	notes_api.get_notes(this.props.owner).then(notes => {
 	    this.setState({
 		notes: notes
 	    });
@@ -204,7 +255,7 @@ class NotesPanel extends React.Component {
 	    let create_note_request = {
 		title: this.state.title,
 		description: this.state.description,
-		owner:this.state.owner,
+		owner:this.props.owner,
 		origin: this.state.origin,
 		tags: this.state.tags,
 	    };
@@ -223,13 +274,16 @@ class NotesPanel extends React.Component {
 
     // Watch for race conditions...
     handleTagListChange = (stateName) => (oldState) => (evt, newValue) => {
-	console.log("tl");
-	console.log(evt, newValue);
 	// Hello? yes, this is jank please find a new way to do this lol
 	// or at least localize it to a component?
 	const index = evt.target.name.split("-")[0]
 	oldState[index].value = evt.target.value;
 	this.setState({[stateName]: oldState})
+    }
+
+    handleListEntryDelete = (stateName) => (oldState) => (index) => () => {
+	oldState.splice(index, 1);
+	this.setState({[stateName]: oldState});
     }
 
     handleTagPickerChange = (stateName) => (evt, newValue) => {
@@ -246,6 +300,7 @@ class NotesPanel extends React.Component {
 		handleChange={this.handleNoteEdit}
 		handleNoteTagEdit={this.handleNoteTagEdit}
 		handleTagListChange={this.handleTagListChange}
+		handleListEntryDelete={this.handleListEntryDelete}
 		handleSave={this.handleSave}
 		handleArchive={this.handleArchive}
 		open={this.state.open}
@@ -257,6 +312,7 @@ class NotesPanel extends React.Component {
 	    <TagPicker
 	    handlePickerChange={this.handleTagPickerChange("search")}
 	    handleListEntryChange={this.handleTagListChange("search")}
+	    handleListEntryDelete={this.handleListEntryDelete("search")}
 	    value={this.state.search}
 	    inputPlaceholder="Search for tags..."
 	    variant="filled"
@@ -348,6 +404,7 @@ class NoteDialog extends React.Component {
 	    handleChange,
 	    handleNoteTagEdit,
 	    handleTagListChange,
+	    handleListEntryDelete,
 	    handleClose,
 	    handleSave,
 	    handleArchive,
@@ -387,9 +444,10 @@ class NoteDialog extends React.Component {
 	    <TagPicker
 	    handlePickerChange={handleNoteTagEdit}
 	    handleListEntryChange={handleTagListChange("tags")}
+	    handleListEntryDelete={handleListEntryDelete("tags")}
 	    value={tags}
 	    variant="standard"
-	    inputPlaceholder="Enter tags..."
+	    inputPlaceholder="Edit tags..."
 	    />
 
         </DialogContent>
@@ -423,7 +481,7 @@ class TagInput extends React.Component {
 
 class TagPicker extends React.Component {
     render() {
-	const {value, handlePickerChange, handleListEntryChange, inputPlaceholder, variant} = this.props;
+	const {value, handlePickerChange, handleListEntryChange, handleListEntryDelete, inputPlaceholder, variant} = this.props;
 	return (<>
     	<Autocomplete
 	    multiple
@@ -443,7 +501,8 @@ class TagPicker extends React.Component {
 		placeholder={inputPlaceholder}
 		/>}
 	    />
-	<TagList value={value} onChange={handleListEntryChange} />
+	    <TagList value={value} onChange={handleListEntryChange}
+	    handleDelete={handleListEntryDelete} />
 	</>)
     }
 }
@@ -458,11 +517,25 @@ class TagList extends React.Component {
 	const tags = this.props.value;
 	const handleChange = this.props.onChange(tags);
 	return (
-	    <ul>
+	    <Grid spacing={1} container direction="row" justify="flex-start" alignItems="center">
+	    <Grid item>
+	    {tags.length > 0 && <Typography>Tags:</Typography>}
+	    </Grid>
 	    {tags.map((tag_data, index) => {
-		return <TagValue editable={true} tag_index={index} onChange={handleChange} {...tag_data} />
-	    })}
-	    </ul>
+		return (
+		    <Grid item>
+		    <TagValue
+		    editable={true}
+		    tag_index={index}
+		    onChange={handleChange}
+		    handleDelete={this.props.handleDelete(tags)(index)}
+		    {...tag_data} 
+		    />
+		    </Grid>
+		)
+	   })}
+
+	    </Grid>
 	)
     }
 }
@@ -472,6 +545,7 @@ class TagValue extends React.Component {
     render() {
 	const {
 	    editable,
+	    handleDelete,
 	    onChange,
 	    tag_index,
 	    canHaveValue,
@@ -485,7 +559,9 @@ class TagValue extends React.Component {
 	}
 	return (
 	    <>
-	    {!(canHaveValue || editable) && <Typography>{title}</Typography>}
+	    {!canHaveValue && !editable && <Chip label={title}/>}
+	    {!canHaveValue && editable && <Chip label={title} onDelete={handleDelete}/>}
+	    {/*TODO make this a clickable chip? with a modal that opens?*/}
 	    {editable && canHaveValue &&
 	     <TextField value={value || ""}
 		onChange={onChange}
@@ -493,7 +569,7 @@ class TagValue extends React.Component {
 		name={tag_index + "-" + title + "-value"}
 		label={title}
 		/>}
-	    {!editable && canHaveValue && <Typography>{title}: {humanValue}</Typography>}
+	    {!editable && canHaveValue && <Chip label={title + ": " + humanValue} />}
 	    </>
 	)
     }
